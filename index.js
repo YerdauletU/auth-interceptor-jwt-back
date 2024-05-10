@@ -20,15 +20,9 @@
 // const zxc = fs.readFileSync("./DB.json", "utf8")
 // console.log(zxc);
 
-///////////
-
-// app.post("/asd", (req, res) => {
-//     let {id} = req.body;
-//     console.log(id);
-
-//     // return res.send("asd: " + id);
-//     res.json({"uuid": 65464564});
-// })
+// let uuid = crypto.randomUUID();
+// console.log(typeof uuid);
+// console.log(uuid);
 
 /////////////
 
@@ -44,8 +38,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Заглушка для базы данных пользователей
 function findUserByUsername(username) {
-  let users = fs.readFileSync("./DB.json", "utf8");
-  users = JSON.parse(users);
+  let users = JSON.parse(fs.readFileSync("./DB.json", "utf8"));
 
   let result;
   users.map((user, index) => {
@@ -53,6 +46,7 @@ function findUserByUsername(username) {
       result = { index, ...user };
     }
   });
+
   return result;
 }
 
@@ -74,72 +68,92 @@ function generateRefreshToken({ id, name, password }) {
 }
 
 app.post("/api/login", (req, res) => {
-  // Предположим, что данные пользователя передаются в теле запроса
-  const { name, password, access } = req.body;
-  const authHeader = req.headers["Authorization"];
-  console.log(authHeader);
-
   // Находим пользователя в базе данных
   const user = findUserByUsername(name);
-  console.log(user);
+
+  // Предположим, что данные пользователя передаются в теле запроса
+  const { name, password } = req.body;
+  const access = req.headers["authorization"].split(" ")[1];
+  if (!access) access = user.access;
 
   if (!user || user.password !== password) {
     return res.status(401).json({ error: "Неверные учетные данные" });
   }
 
-  let accessToken;
-  if (!access) accessToken = user.access;
-
-  jwt.verify(accessToken, accessPrivateKey, (err, decoded) => {
+  jwt.verify(access, accessPrivateKey, (err, decoded) => {
     if (err) {
-      // console.log(typeof {...decoded});
-      // console.log({...decoded});
-      // return res.json({decoded});
-      return res.status(403).json({ error: "Недействительный access token" });
+      return res
+        .status(403)
+        .json({ error: "Недействительный access token", access });
     }
 
-    // return res.json({ answer: name });
-    return res.json({ accessToken });
+    return res.json({ access });
   });
 });
 
+app.post("/api/signup", (req, res) => {
+  let users = JSON.parse(fs.readFileSync("./DB.json", "utf8"));
+
+  const { name, password } = req.body;
+
+  let user = users.find((user) => user.name === name);
+  if (user) return res.status(401).json({ error: "Имя пользователя занято" });
+
+  const id = crypto.randomUUID();
+  const access = generateAccessToken({ id, name, password });
+  const refresh = generateRefreshToken({ id, name, password });
+
+  users.push({ id, name, password, access, refresh });
+
+  fs.writeFileSync("./DB.json", JSON.stringify(users));
+
+  return res.json(users);
+});
+
 app.post("/api/refresh", (req, res) => {
-  const userName = req.body.name;
-
-  const user = findUserByUsername(userName);
-
-  let { refresh, index } = user;
+  const accessToken = req.headers["authorization"].split(" ")[1];
 
   let customDecoded;
   try {
-    customDecoded = jwt.decode(refresh);
+    customDecoded = jwt.decode(accessToken);
   } catch (error) {
     return res
       .status(403)
-      .json({ error: "Отсуствуют decode данные refresh token" });
+      .json({ error: "Отсуствуют decode данные access token" });
   }
 
-  let { id, name, password } = customDecoded;
+  const { index, id, name, password, access, refresh } = findUserByUsername(
+    customDecoded.name
+  );
 
   jwt.verify(refresh, refreshPrivateKey, (err, decoded) => {
     if (err) {
-      //   return res.status(403).json({ error: "Недействительный refresh token" });
+      let newRefreshToken = generateRefreshToken({ id, name, password });
+      let newAccessToken = generateAccessToken({ id, name, password });
 
-      return res.json(customDecoded);
+      let users = JSON.parse(fs.readFileSync("./DB.json", "utf8"));
+
+      users[index].refresh = newRefreshToken;
+      users[index].access = newAccessToken;
+
+      fs.writeFileSync("./DB.json", JSON.stringify(users));
+
+      return res.json({
+        access: users[index].access,
+        refresh: users[index].refresh,
+      });
     }
 
     let newAccessToken = generateAccessToken({ id, name, password });
-    
-    let users = fs.readFileSync("./DB.json", "utf8");
-    users = JSON.parse(users);
-    // console.log("prev access: " + users[index].access);
-    users[index].access = newAccessToken;
-    // console.log(users[index]);
-    fs.writeFileSync("./DB.json", JSON.stringify(users));
-    return res.json({ newAccessToken });
-  });
 
-  // return res.json(customDecoded);
+    let users = JSON.parse(fs.readFileSync("./DB.json", "utf8"));
+
+    users[index].access = newAccessToken;
+
+    fs.writeFileSync("./DB.json", JSON.stringify(users));
+
+    return res.json({ access: users[index].access });
+  });
 });
 
 app.listen(PORT, () => {
