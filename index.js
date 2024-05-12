@@ -156,7 +156,8 @@ app.post("/api/refresh", (req, res) => {
   });
 });
 
-app.post("http://localhost:8080//api/asd", (req, res) => {
+app.post("/api/asd", (req, res) => {
+  // console.log("xxxx");
   return res.json({message: "aaabbb"});
 });
 
