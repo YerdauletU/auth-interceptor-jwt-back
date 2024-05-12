@@ -156,6 +156,10 @@ app.post("/api/refresh", (req, res) => {
   });
 });
 
+app.post("http://localhost:8080//api/asd", (req, res) => {
+  return res.json({message: "aaabbb"});
+});
+
 app.listen(PORT, () => {
   console.log(`Сервер запущен на порту ${PORT}`);
 });
