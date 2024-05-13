@@ -29,18 +29,26 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const fs = require("fs");
+const cors = require("cors");
+
+const corsOptions = {
+  origin: "http://localhost:3000",
+  credentials: true, //access-control-allow-credentials:true
+  optionSuccessStatus: 200,
+};
 
 const app = express();
 const PORT = 8080;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cors(corsOptions));
 
 // Заглушка для базы данных пользователей
 function findUserByUsername(username) {
   let users = JSON.parse(fs.readFileSync("./DB.json", "utf8"));
 
-  let result;
+  let result = false;
   users.map((user, index) => {
     if (user.name === username) {
       result = { index, ...user };
@@ -68,26 +76,37 @@ function generateRefreshToken({ id, name, password }) {
 }
 
 app.post("/api/login", (req, res) => {
+  const { name, password } = req.body;
   // Находим пользователя в базе данных
   const user = findUserByUsername(name);
-
   // Предположим, что данные пользователя передаются в теле запроса
-  const { name, password } = req.body;
-  const access = req.headers["authorization"].split(" ")[1];
-  if (!access) access = user.access;
-
   if (!user || user.password !== password) {
-    return res.status(401).json({ error: "Неверные учетные данные" });
+    return res.status(404).json({ error: "Неверные учетные данные" });
   }
+
+  let access = req.headers["authorization"];
+  if (access) access = access.split(" ")[1];
+  if (
+    access === "undefined" ||
+    access === "null" ||
+    access === undefined ||
+    access === null
+  )
+    access = user.access;
 
   jwt.verify(access, accessPrivateKey, (err, decoded) => {
     if (err) {
+      console.log("Недействительный access token");
       return res
-        .status(403)
+        .status(401)
         .json({ error: "Недействительный access token", access });
     }
 
-    return res.json({ access });
+    console.log("действительный access token без изменений refresh token");
+    return res.status(200).json({
+      access,
+      state: "действительный access token без изменений refresh token",
+    });
   });
 });
 
@@ -138,9 +157,12 @@ app.post("/api/refresh", (req, res) => {
 
       fs.writeFileSync("./DB.json", JSON.stringify(users));
 
-      return res.json({
+      console.log("Обновлен недействительный refresh token и access token");
+
+      return res.status(200).json({
         access: users[index].access,
         refresh: users[index].refresh,
+        answer: "Обновлен недействительный refresh token и access token",
       });
     }
 
@@ -152,13 +174,21 @@ app.post("/api/refresh", (req, res) => {
 
     fs.writeFileSync("./DB.json", JSON.stringify(users));
 
-    return res.json({ access: users[index].access });
+    console.log(
+      "Обновлен недействительный access token без изменений refresh token"
+    );
+
+    return res.json({
+      access: users[index].access,
+      answer:
+        "Обновлен недействительный access token без изменений refresh token",
+    });
   });
 });
 
 app.post("/api/asd", (req, res) => {
-  // console.log("xxxx");
-  return res.json({message: "aaabbb"});
+  console.log("get: " + req.body.name);
+  return res.json({ message: "aaabbb" });
 });
 
 app.listen(PORT, () => {
