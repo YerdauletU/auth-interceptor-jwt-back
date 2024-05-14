@@ -4,7 +4,7 @@
 // let accessPrivateKey = 'your_access_secret_key';
 // let refreshPrivateKey = 'your_refresh_secret_key';
 
-// let aToken = jwt.sign({ id: 3, name: "c", password: "cc" }, accessPrivateKey, { expiresIn: '30' });
+// let aToken = jwt.sign({ id: 3, name: "c", password: "cc" }, accessPrivateKey, { expiresIn: '5000h' });
 // let rToken = jwt.sign({ id: 2, name: "b", password: "bb" }, refreshPrivateKey, { expiresIn: '5000h' });
 
 // console.log("access: " + aToken);
@@ -64,14 +64,14 @@ let refreshPrivateKey = "your_refresh_secret_key";
 // Генерация Access Token
 function generateAccessToken({ id, name, password }) {
   return jwt.sign({ id, name, password }, accessPrivateKey, {
-    expiresIn: "30",
+    expiresIn: "5",
   });
 }
 
 // Генерация Refresh Token
 function generateRefreshToken({ id, name, password }) {
   return jwt.sign({ id, name, password }, refreshPrivateKey, {
-    expiresIn: "5m",
+    expiresIn: "15",
   });
 }
 
@@ -96,13 +96,13 @@ app.post("/api/login", (req, res) => {
 
   jwt.verify(access, accessPrivateKey, (err, decoded) => {
     if (err) {
-      console.log("Недействительный access token");
+      // console.log("Недействительный access token");
       return res
         .status(401)
         .json({ error: "Недействительный access token", access });
     }
 
-    console.log("действительный access token без изменений refresh token");
+    // console.log("действительный access token без изменений refresh token");
     return res.status(200).json({
       access,
       state: "действительный access token без изменений refresh token",
@@ -126,7 +126,7 @@ app.post("/api/signup", (req, res) => {
 
   fs.writeFileSync("./DB.json", JSON.stringify(users));
 
-  return res.json(users);
+  return res.status(200).json({state: "Регистрация прошло успешно", access});
 });
 
 app.post("/api/refresh", (req, res) => {
@@ -157,12 +157,9 @@ app.post("/api/refresh", (req, res) => {
 
       fs.writeFileSync("./DB.json", JSON.stringify(users));
 
-      console.log("Обновлен недействительный refresh token и access token");
-
       return res.status(200).json({
         access: users[index].access,
-        refresh: users[index].refresh,
-        answer: "Обновлен недействительный refresh token и access token",
+        state: "Обновлен недействительный refresh token и access token",
       });
     }
 
@@ -174,21 +171,12 @@ app.post("/api/refresh", (req, res) => {
 
     fs.writeFileSync("./DB.json", JSON.stringify(users));
 
-    console.log(
-      "Обновлен недействительный access token без изменений refresh token"
-    );
-
-    return res.json({
+    return res.status(200).json({
       access: users[index].access,
-      answer:
+      state:
         "Обновлен недействительный access token без изменений refresh token",
     });
   });
-});
-
-app.post("/api/asd", (req, res) => {
-  console.log("get: " + req.body.name);
-  return res.json({ message: "aaabbb" });
 });
 
 app.listen(PORT, () => {
